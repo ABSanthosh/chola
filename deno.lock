@@ -1,0 +1,16 @@
+{
+  "version": "4",
+  "specifiers": {
+    "npm:mupdf@^1.26.2": "1.26.2"
+  },
+  "npm": {
+    "mupdf@1.26.2": {
+      "integrity": "sha512-BYSTaIyHnSkkZog+Bh+VRT+TPguqt3MPiOkOdXJaWnr55lwHAe6/vF+WXKjncOOPXeQeDrXbypnxIv4eUBirSA=="
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "npm:mupdf@^1.26.2"
+    ]
+  }
+}
