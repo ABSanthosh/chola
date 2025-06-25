@@ -14,6 +14,7 @@ import {
   PageData,
   Span,
 } from "./types/PageData.types.ts";
+import { getDebugFilePath } from "./utils/debug.ts";
 
 export class DocData {
   public readonly length: number;
@@ -22,6 +23,15 @@ export class DocData {
   private docData: IDocData = {
     pages: [],
     fontStats: [],
+    bounds: {
+      page: {
+        x: 0,
+        y: 0,
+        w: 0,
+        h: 0,
+      },
+      column: [],
+    },
     spacingStats: {
       horizontal: [],
       vertical: [],
@@ -31,6 +41,10 @@ export class DocData {
   private verticalSpacing: { [key: number]: SpacingStat } = {};
   private horizontalSpacing: { [key: number]: SpacingStat } = {};
   private lineHeightSpacing: { [key: number]: SpacingStat } = {};
+
+  private pageBoundFrequency: {
+    [key: string]: Partial<Block>[];
+  } = {};
 
   constructor(private doc: PDFDocument) {
     this.length = doc.countPages();
@@ -52,10 +66,97 @@ export class DocData {
     this.docData.spacingStats.vertical = this.toArray(this.verticalSpacing);
     this.docData.spacingStats.horizontal = this.toArray(this.horizontalSpacing);
     this.docData.spacingStats.lineHeight = this.toArray(this.lineHeightSpacing);
+    this.docData.bounds = this.enlargePageBound(this.pageBoundFrequency);
+
+    // for (let i = 0; i < this.length; i++) {
+    //   const page = this.doc.loadPage(i);
+    //   [bounds.page].forEach((bound) => {
+    //     const annotation = page.createAnnotation("Polygon");
+    //     annotation.setColor([1, 0, 0]);
+    //     annotation.setVertices([
+    //       [bound.x, bound.y],
+    //       [bound.x + bound.w, bound.y],
+    //       [bound.x + bound.w, bound.y + bound.h],
+    //       [bound.x, bound.y + bound.h],
+    //     ]);
+    //     annotation.update();
+    //   });
+    // }
+
+    // Deno.writeFileSync(
+    //   getDebugFilePath("BoundingBoxesDebug.pdf"),
+    //   this.doc.saveToBuffer("incremental").asUint8Array()
+    // );
   }
 
   public getDocData(): IDocData {
     return this.docData;
+  }
+
+  private enlargePageBound(freq: { [key: string]: Partial<Block>[] }): {
+    page: BBox;
+    column: BBox[];
+  } {
+    const commonBounds = Object.fromEntries(
+      Object.entries(freq)
+        .sort(
+          (a, b) =>
+            (b[1] as Partial<Block>[]).length -
+            (a[1] as Partial<Block>[]).length
+        )
+        .slice(0, 2)
+    );
+
+    // return 2 largest bounding boxes. take all blocks in each item of freq
+    // and enlarge them into a single bounding box and return the two largest
+    // bounding boxes.
+    const enlargedPageBounds: BBox = {
+      x: Infinity,
+      y: Infinity,
+      w: -Infinity,
+      h: -Infinity,
+    };
+    const enlargedColumnBounds: BBox[] = [];
+    Object.values(commonBounds).forEach((item) => {
+      if (item.length === 0) return;
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+
+      item.forEach((block) => {
+        if (!block.bbox) return;
+        minX = Math.min(minX, block.bbox.x);
+        minY = Math.min(minY, block.bbox.y);
+        maxX = Math.max(maxX, block.bbox.x + block.bbox.w);
+        maxY = Math.max(maxY, block.bbox.y + block.bbox.h);
+      });
+
+      enlargedColumnBounds.push({
+        x: minX,
+        y: minY,
+        w: maxX - minX,
+        h: maxY - minY,
+      });
+    });
+
+    // Merge all column bounding boxes into a single page bounding box
+    enlargedPageBounds.x = Math.min(
+      ...enlargedColumnBounds.map((col) => col.x)
+    );
+    enlargedPageBounds.y = Math.min(
+      ...enlargedColumnBounds.map((col) => col.y)
+    );
+    enlargedPageBounds.w =
+      Math.max(...enlargedColumnBounds.map((col) => col.x + col.w)) -
+      enlargedPageBounds.x;
+    enlargedPageBounds.h =
+      Math.max(...enlargedColumnBounds.map((col) => col.y + col.h)) -
+      enlargedPageBounds.y;
+    return {
+      page: enlargedPageBounds,
+      column: enlargedColumnBounds,
+    };
   }
 
   private toArray(records: { [key: string]: SpacingStat }): SpacingStat[] {
@@ -64,6 +165,11 @@ export class DocData {
 
   private asJson(sText: StructuredText): Block[] {
     const blocks: Block[] = [];
+
+    // Key: `x||w`
+    const localPageBoundFrequency: {
+      [key: string]: Partial<Block>[];
+    } = this.pageBoundFrequency;
 
     let currentBlock: Block | null = null;
     let previousLine: Line | null = null;
@@ -229,6 +335,25 @@ export class DocData {
       endTextBlock() {
         if (currentBlock) {
           blocks.push(currentBlock);
+
+          // Check if the block already exists in the pageBoundFrequency
+          const key = `${Math.ceil(currentBlock.bbox.x)}||${Math.ceil(
+            currentBlock.bbox.w
+          )}`;
+          if (key in localPageBoundFrequency) {
+            localPageBoundFrequency[key].push({
+              bbox: currentBlock.bbox,
+              type: "text",
+            });
+          } else {
+            localPageBoundFrequency[key] = [
+              {
+                bbox: currentBlock.bbox,
+                type: "text",
+              },
+            ];
+          }
+
           currentBlock = null;
         }
       },
