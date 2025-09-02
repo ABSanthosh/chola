@@ -24,6 +24,7 @@ export function getTestInputFilePath(
     | "input6.pdf"
     | "input7.pdf"
     | "input8.pdf"
+    | "input9.pdf"
 ): string {
   return `./src/test/${fileName}`;
 }

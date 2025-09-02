@@ -2,13 +2,17 @@ import {
   PDFDocument,
   Quad,
   StructuredText,
+  Matrix,
+  ColorSpace,
+  Buffer,
   type Rect,
   type Font as MuFont,
 } from "mupdf";
 import { IDocData, SpacingStat, FontStat } from "./types/DocData.types.ts";
 import {
   BBox,
-  Block,
+  MuBlock,
+  FlatLine,
   Font,
   Line,
   PageData,
@@ -22,6 +26,7 @@ export class DocData {
   private fontStats: { [key: string]: FontStat } = {};
   private docData: IDocData = {
     pages: [],
+    lines: [],
     fontStats: [],
     bounds: {
       page: {
@@ -41,9 +46,10 @@ export class DocData {
   private verticalSpacing: { [key: number]: SpacingStat } = {};
   private horizontalSpacing: { [key: number]: SpacingStat } = {};
   private lineHeightSpacing: { [key: number]: SpacingStat } = {};
+  private flatLines: FlatLine[] = [];
 
   private pageBoundFrequency: {
-    [key: string]: Partial<Block>[];
+    [key: string]: Partial<MuBlock>[];
   } = {};
 
   constructor(private doc: PDFDocument) {
@@ -51,15 +57,29 @@ export class DocData {
 
     for (let i = 0; i < this.length; i++) {
       const page = doc.loadPage(i);
-      const structuredPage = page.toStructuredText();
 
+      // const pixmap = page.toPixmap(
+      //   Matrix.scale(2, 2),
+      //   ColorSpace.DeviceRGB,
+      //   false,
+      //   false
+      // );
+
+      // Deno.writeFileSync(
+      //   getDebugFilePath(`DocDataDebugPage${i + 1}.png`),
+      //   new Buffer(pixmap.asPNG()).asUint8Array()
+      // );
+      // pixmap.destroy();
+
+      const structuredPage = page.toStructuredText();
       this.pages.push({
         index: i,
-        blocks: this.asJson(structuredPage),
+        blocks: this.asJson(structuredPage, i),
       });
     }
 
     this.docData.pages = this.pages;
+    this.docData.lines = this.flatLines;
     this.docData.fontStats = Object.values(this.fontStats).sort(
       (a, b) => b.frequency - a.frequency
     );
@@ -70,7 +90,7 @@ export class DocData {
 
     // for (let i = 0; i < this.length; i++) {
     //   const page = this.doc.loadPage(i);
-    //   [bounds.page].forEach((bound) => {
+    //   this.docData.bounds.column.forEach((bound) => {
     //     const annotation = page.createAnnotation("Polygon");
     //     annotation.setColor([1, 0, 0]);
     //     annotation.setVertices([
@@ -93,7 +113,7 @@ export class DocData {
     return this.docData;
   }
 
-  private enlargePageBound(freq: { [key: string]: Partial<Block>[] }): {
+  private enlargePageBound(freq: { [key: string]: Partial<MuBlock>[] }): {
     page: BBox;
     column: BBox[];
   } {
@@ -101,8 +121,8 @@ export class DocData {
       Object.entries(freq)
         .sort(
           (a, b) =>
-            (b[1] as Partial<Block>[]).length -
-            (a[1] as Partial<Block>[]).length
+            (b[1] as Partial<MuBlock>[]).length -
+            (a[1] as Partial<MuBlock>[]).length
         )
         .slice(0, 2)
     );
@@ -163,15 +183,16 @@ export class DocData {
     return Object.values(records).sort((a, b) => b.frequency - a.frequency);
   }
 
-  private asJson(sText: StructuredText): Block[] {
-    const blocks: Block[] = [];
+  private asJson(sText: StructuredText, pageIndex: number): MuBlock[] {
+    const blocks: MuBlock[] = [];
+    const localFlatLines: FlatLine[] = [];
 
     // Key: `x||w`
     const localPageBoundFrequency: {
-      [key: string]: Partial<Block>[];
+      [key: string]: Partial<MuBlock>[];
     } = this.pageBoundFrequency;
 
-    let currentBlock: Block | null = null;
+    let currentBlock: MuBlock | null = null;
     let previousLine: Line | null = null;
     let currentLine: Line | null = null;
     let currentSpans: Span[] = [];
@@ -287,6 +308,10 @@ export class DocData {
         if (currentLine) {
           currentLine.spans = currentSpans;
           currentBlock?.lines.push(currentLine);
+          localFlatLines.push({
+            ...currentLine,
+            pageIndex,
+          });
 
           // Line height
           //         ┌────────────┐ ┬
@@ -431,6 +456,8 @@ export class DocData {
       ...localVerticalSpacing,
     };
 
+    this.flatLines = [...this.flatLines, ...localFlatLines];
+
     return blocks;
   }
 
@@ -438,11 +465,11 @@ export class DocData {
     outputPath: string = "./DocDataDebug.pdf",
     writeFileSync: (path: string, data: Uint8Array) => void,
     color: {
-      wordBorder?: [number, number, number]; // RGB: 0–1 range
+      wordBorder?: [number, number, number];
       wordFill?: [number, number, number] | null;
     } = {
-      wordBorder: [0, 0, 1], // default blue border
-      wordFill: null, // no fill by default
+      wordBorder: [0, 0, 1],
+      wordFill: null,
     }
   ): void {
     const pageLimit = this.length;
@@ -453,48 +480,30 @@ export class DocData {
       pageCount++;
       for (const block of pageData.blocks) {
         if (block.type !== "text") continue;
-        // Draw a rectangle around the block
-        const { x, y, w, h } = block.bbox;
-        const annotation = page.createAnnotation("Polygon");
-        annotation.setColor(color.wordBorder || [0, 0, 1]);
-        // if (color.wordFill) {
-        //   annotation.setInteriorColor(color.wordFill);
-        // }
+        for (const line of block.lines) {
+          const { x, y, w, h } = line.bbox;
+          const annotation = page.createAnnotation("Polygon");
+          annotation.setColor(color.wordBorder || [0, 0, 1]);
 
-        annotation.setVertices([
-          [x, y],
-          [x + w, y],
-          [x + w, y + h],
-          [x, y + h],
-        ]);
-        annotation.update();
+          if (color.wordFill) {
+            annotation.setInteriorColor(color.wordFill);
+          }
 
-        // for (const line of block.lines) {
-        //   // for (const span of line.spans) {
-        //   const { x, y, w, h } = line.bbox;
-        //   const annotation = page.createAnnotation("Polygon");
-        //   annotation.setColor(color.wordBorder || [0, 0, 1]);
+          annotation.setVertices([
+            [x, y],
+            [x + w, y],
+            [x + w, y + h],
+            [x, y + h],
+          ]);
 
-        //   if (color.wordFill) {
-        //     annotation.setInteriorColor(color.wordFill);
-        //   }
-
-        //   annotation.setVertices([
-        //     [x, y],
-        //     [x + w, y],
-        //     [x + w, y + h],
-        //     [x, y + h],
-        //   ]);
-
-        //   annotation.update();
-        //   // }
-        // }
+          annotation.update();
+        }
       }
 
       page.destroy();
 
       if (pageCount >= pageLimit) {
-        break; // Limit the number of pages processed
+        break;
       }
     }
 

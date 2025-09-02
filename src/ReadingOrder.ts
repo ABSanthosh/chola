@@ -1,9 +1,9 @@
 import { PDFDocument } from "mupdf";
 import { IDocData } from "./types/DocData.types.ts";
-import { BBox, Block } from "./types/PageData.types.ts";
+import { BBox, MuBlock } from "./types/PageData.types.ts";
 
 type IndexedBlock = {
-  block: Block;
+  block: MuBlock;
   index: number;
 };
 
@@ -57,17 +57,32 @@ export class ReadingOrder {
     this.blocks = [];
     for (const page of this.docData.pages) {
       for (const block of page.blocks) {
-        if (
-          block.type === "text" &&
-          this.isInsideBounds(block.bbox, this.docData.bounds.page)
-        ) {
-          this.blocks.push({ block, index: this.blocks.length });
+        for (const line of block.lines) {
+          const lineAsBlock: MuBlock = {
+            type: "text",
+            bbox: line.bbox,
+            lines: [line],
+          };
+          if (this.isInsideBounds(line.bbox, this.docData.bounds.page)) {
+            // console.log(`Processing line: ${line.text}`);
+            this.blocks.push({ block: lineAsBlock, index: this.blocks.length });
+          }
         }
       }
     }
+    // for (const page of this.docData.pages) {
+    //   for (const block of page.blocks) {
+    //     if (
+    //       block.type === "text" &&
+    //       this.isInsideBounds(block.bbox, this.docData.bounds.page)
+    //     ) {
+    //       this.blocks.push({ block, index: this.blocks.length });
+    //     }
+    //   }
+    // }
   }
 
-  public computeReadingOrder(): Block[] {
+  public computeReadingOrder(): MuBlock[] {
     const order = this.solve(0, []);
     return order.map((i) => this.blocks[i].block);
   }
@@ -106,7 +121,7 @@ export class ReadingOrder {
     return result;
   }
 
-  private possibleVCuts(block: Block): VerticalCut[] {
+  private possibleVCuts(block: MuBlock): VerticalCut[] {
     const cuts: VerticalCut[] = [];
     const { x, w } = block.bbox;
     const step = w / 4;
@@ -167,7 +182,7 @@ export class ReadingOrder {
       const page = this.doc.loadPage(pageData.index);
 
       for (const block of ordered) {
-        if (!pageData.blocks.includes(block)) continue;
+        // if (!pageData.blocks.includes(block)) continue;
 
         const { x, y, w, h } = block.bbox;
 

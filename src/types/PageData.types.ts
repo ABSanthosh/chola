@@ -1,6 +1,6 @@
 export interface PageData {
   index: number;
-  blocks: Block[];
+  blocks: MuBlock[];
 }
 
 export interface BBox {
@@ -8,6 +8,10 @@ export interface BBox {
   y: number;
   w: number;
   h: number;
+}
+
+export interface FlatLine extends Line {
+  pageIndex: number;
 }
 
 export interface Line {
@@ -23,7 +27,7 @@ export interface Span {
   text: string;
 }
 
-export interface Block {
+export interface MuBlock {
   type: "image" | "text";
   bbox: BBox;
   lines: Line[];

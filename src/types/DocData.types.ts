@@ -1,7 +1,8 @@
-import type { BBox, Font, PageData } from "./PageData.types.ts";
+import type { BBox, FlatLine, Font, PageData } from "./PageData.types.ts";
 
 export interface IDocData {
   pages: PageData[];
+  lines: FlatLine[];
   fontStats: FontStat[];
   bounds: {
     page: BBox;
