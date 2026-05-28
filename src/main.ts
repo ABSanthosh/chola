@@ -11,13 +11,17 @@ if (import.meta.main) {
   ) as PDFDocument;
 
   const docData = new DocData(doc);
-  const classifier = new Classifier(docData.getDocData(), doc);
+  console.log("Extracted document data");
+  // const classifier = new Classifier(docData.getDocData(), doc);
 
-  // Classify lines and generate debug output
-  classifier.classifyLines();
-  classifier.debug();
+  // // Classify lines and generate debug output
+  // classifier.classifyLines();
+  // classifier.debug();
 
   // Optional: Print line classifications
   // const lineClassifications = classifier.getLineClassifications();
   // console.log(JSON.stringify(lineClassifications, null, 2));
+
+  // const readingOrder = new ReadingOrder(doc, docData.getDocData());
+  // readingOrder.debug(getDebugFilePath("reading_order.pdf"), Deno.writeFileSync);
 }

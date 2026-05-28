@@ -55,31 +55,31 @@ export class ReadingOrder {
 
   private flattenBlocks() {
     this.blocks = [];
-    for (const page of this.docData.pages) {
-      for (const block of page.blocks) {
-        for (const line of block.lines) {
-          const lineAsBlock: MuBlock = {
-            type: "text",
-            bbox: line.bbox,
-            lines: [line],
-          };
-          if (this.isInsideBounds(line.bbox, this.docData.bounds.page)) {
-            // console.log(`Processing line: ${line.text}`);
-            this.blocks.push({ block: lineAsBlock, index: this.blocks.length });
-          }
-        }
-      }
-    }
     // for (const page of this.docData.pages) {
     //   for (const block of page.blocks) {
-    //     if (
-    //       block.type === "text" &&
-    //       this.isInsideBounds(block.bbox, this.docData.bounds.page)
-    //     ) {
-    //       this.blocks.push({ block, index: this.blocks.length });
+    //     for (const line of block.lines) {
+    //       const lineAsBlock: MuBlock = {
+    //         type: "text",
+    //         bbox: line.bbox,
+    //         lines: [line],
+    //       };
+    //       if (this.isInsideBounds(line.bbox, this.docData.bounds.page)) {
+    //         console.log(`Processing line: ${line.text}`);
+    //         this.blocks.push({ block: lineAsBlock, index: this.blocks.length });
+    //       }
     //     }
     //   }
     // }
+    for (const page of this.docData.pages) {
+      for (const block of page.blocks) {
+        if (
+          block.type === "text" &&
+          this.isInsideBounds(block.bbox, this.docData.bounds.page)
+        ) {
+          this.blocks.push({ block, index: this.blocks.length });
+        } 
+      }
+    }
   }
 
   public computeReadingOrder(): MuBlock[] {
@@ -182,7 +182,7 @@ export class ReadingOrder {
       const page = this.doc.loadPage(pageData.index);
 
       for (const block of ordered) {
-        // if (!pageData.blocks.includes(block)) continue;
+        if (!pageData.blocks.includes(block)) continue;
 
         const { x, y, w, h } = block.bbox;
 
