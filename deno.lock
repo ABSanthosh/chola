@@ -1,0 +1,16 @@
+{
+  "version": "5",
+  "specifiers": {
+    "npm:pdf-oxide-wasm@~0.3.55": "0.3.55"
+  },
+  "npm": {
+    "pdf-oxide-wasm@0.3.55": {
+      "integrity": "sha512-+ScnMjrhV0BUaznSj2+WHQc1GsGyIU6o+oAjsqvJALjWBw1/B0fHkwfnMOzW1Ida9Q39lN6gk0/WHjWWfZLlww=="
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "npm:pdf-oxide-wasm@~0.3.55"
+    ]
+  }
+}

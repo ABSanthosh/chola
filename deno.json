@@ -1,0 +1,8 @@
+{
+  "tasks": {
+    "run": "deno run --allow-all main.ts"
+  },
+  "imports": {
+    "pdf-oxide-wasm": "npm:pdf-oxide-wasm@^0.3.55"
+  }
+}
