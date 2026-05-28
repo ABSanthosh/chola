@@ -1,9 +1,0 @@
-{
-  "tasks": {
-    "dev": "deno run --watch main.ts",
-    "run": "deno run --allow-all src/main.ts"
-  },
-  "imports": {
-    "mupdf": "npm:mupdf@^1.26.2"
-  }
-}
